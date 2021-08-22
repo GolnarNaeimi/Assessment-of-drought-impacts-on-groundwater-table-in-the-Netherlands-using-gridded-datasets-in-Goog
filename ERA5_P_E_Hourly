@@ -1,0 +1,40 @@
+//https://developers.google.com/earth-engine/datasets/catalog/ECMWF_ERA5_LAND_HOURLY
+//Select Data Band and Filter. P is total_precipitation and E is total_evaporation 
+var dataset = ee.ImageCollection("ECMWF/ERA5_LAND/HOURLY")
+                .filter(ee.Filter.date('2002-04-01', '2002-06-01'))
+                .select('total_precipitation')
+                .map(function(image){return image.clip(table)});
+
+// Zoom to stady area
+Map.centerObject(table, 8);
+
+//Convert ImageCollection to FeatureCollection
+var timeseries = dataset.map(function (image) {
+  var value = image.reduceRegion({
+    reducer: ee.Reducer.first(),
+    geometry: table,
+    scale: image.projection().nominalScale()
+  }).get('total_precipitation');
+  return ee.Feature(null, {
+    'value': value,
+    'date': image.date().format('yyyy-MM-dd'),
+    'system:time_start': image.date().millis()
+  })
+});
+// Print FeatureCollection in Cosole tab 
+print(timeseries);
+
+// Generate a chart from an ImageCollection
+var chart = ui.Chart.image.series({
+  imageCollection: dataset, 
+  region: table, 
+  scale: 1
+});
+print(chart);
+
+//Derive Hourly Data by exporting to the Google Drive
+Export.table.toDrive({
+  collection: timeseries, 
+  description: 'ERA5_P_Hourly_2001_2002',
+  selectors: ['value', 'date']
+});
