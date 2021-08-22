@@ -1,0 +1,56 @@
+//Data band: Normalized Difference Vegetation Index is NDVI
+//https://developers.google.com/earth-engine/datasets/catalog/MODIS_006_MOD13Q1?hl=en
+//Filter a preferable date to visualize from 2000-02-18T00:00:00 to 2021-07-28T00:00:00
+//Band name is NDVI
+var dataset = ee.ImageCollection('MODIS/006/MOD13Q1')
+                  .filter(ee.Filter.date('2001-04-01', '2002-04-01'))
+                  .select('NDVI')
+                  .map(function(image){return image.clip(Fields)});
+//Normalized Difference Vegetation Index scale is 0.0001 
+var NDVICollection = dataset.map(function(image){
+                       var rescaled_NDVI = image.select('NDVI')
+                           .multiply(0.0001)
+                           .rename('NDVI_rescaled');
+                      return image.addBands(rescaled_NDVI);
+  }
+);
+
+//ImageCollection to FeatureCollection and Print FeatureCollection
+var timeseries = NDVICollection.map(function (image) {
+  var value = image.reduceRegion({
+    reducer: ee.Reducer.first(),
+    geometry: Fields,
+    scale: image.projection().nominalScale()
+  }).get('NDVI_rescaled')
+  return ee.Feature(null, {
+    'value': value,
+    'date': image.date().format('yyyy-MM-dd'),
+    'system:time_start': image.date().millis()
+  })
+})
+
+print(timeseries)
+
+
+// Representing the timeseries of the featurecollection in a chart
+//charts time-series
+var chart = ui.Chart.image.seriesByRegion(
+                                          NDVICollection,
+                                          Fields,
+                                          ee.Reducer.mean(),
+                                          'NDVI_rescaled',
+                                          500,
+                                          'system:time_start')
+                                          .setOptions({
+                                            title: 'NDVI Time Series',
+                                            vAxis: {title: 'NDVI'},
+});
+
+print(chart);
+
+//Exporting the results to the Google Drive
+Export.table.toDrive({
+  collection: timeSeries, 
+  description: 'NDVI_2001_2002',
+  selectors: ['value', 'date']
+})
