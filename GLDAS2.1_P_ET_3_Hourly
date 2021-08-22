@@ -1,0 +1,41 @@
+//Select Data Band and Filter. P Band is Rainf_f_tavg and ET is Evap_tavg 
+//https://developers.google.com/earth-engine/datasets/catalog/NASA_GLDAS_V021_NOAH_G025_T3H#description
+var dataset = ee.ImageCollection('NASA/GLDAS/V021/NOAH/G025/T3H')
+                  .filter(ee.Filter.date('2001-04-01', '2002-04-01'))
+                  .select('Evap_tavg')
+                  .map(function(image){return image.clip(table)});
+
+// Zoom to the Stady Area
+Map.centerObject(table, 12);
+
+//Convert ImageCollection to FeatureCollection
+var timeseries = dataset.map(function (image) {
+  var value = image.reduceRegion({
+    reducer: ee.Reducer.first(),
+    geometry: table,
+    scale: image.projection().nominalScale()
+  }).get('Evap_tavg');
+  return ee.Feature(null, {
+    'value': value,
+    'date': image.date().format('yyyy-MM-dd'),
+    'system:time_start': image.date().millis()
+  })
+});
+
+// Print FeatureCollection in Cosole tab 
+print(timeseries);
+
+// Generate a chart from an ImageCollection
+var chart = ui.Chart.image.series({
+  imageCollection: dataset, 
+  region: table, 
+  scale: 1
+});
+print(chart);
+
+//Derive 3Hourly Data by exporting to the Google Drive
+Export.table.toDrive({
+  collection: timeseries, 
+  description: 'GLDAS_P_3Hourly_2001_2002',
+  selectors: ['value', 'date']
+});
